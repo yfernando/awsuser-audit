@@ -1,0 +1,44 @@
+#!/usr/bin/env ansible-playbook -vv
+
+# This playbook gets a list of IAM users in a set of AWS accounts with some
+# details about them. i.e. username, last login, user polices/roles/groups
+#
+# The list of AWS accounts is execpted to be defined in
+# ```../common_configs/accounts.yml```
+
+- name: Get the user list from all our AWS accounts.
+  hosts: localhost
+  connection: local
+  vars_files:
+  - "./common_config/accounts.local.yml"
+
+  vars:
+    apply_on: "Test"                          # Account Name which playbook will interract with
+    apply_role: "CloudAdministrator"          # Assume Role on AWS Account to apply changes, Currently it's CloudAdministrator
+    aws_jump_profile: identity                # "Jump" profile in credentials file. Currently it should be "identity"
+    apply: no
+
+  tasks:
+  # GET TEMP CREDENTIALS
+  # The temporary creds are stroed in the 'assumed_role' variable.
+  # This 'assumed_role' variable will later be used for authentication.
+  # Used in the custom  module: get_iam_users
+  - name: Request STS for AWS Temporarily Credentials.
+    sts_assume_role:
+      # role_arn: "arn:aws:iam::{{ accounts | selectattr('name', 'equalto', apply_on) | map(attribute='id') | list | join('') }}:role/AssumeRole-{{ apply_role }}"
+      role_arn: "arn:aws:iam::543687320164:role/AssumeRole-{{ apply_role }}"
+      role_session_name: "AnsibleAPICall-{{ ansible_user }}-assume-role"
+      region: "eu-west-1"
+      profile: "{{ aws_jump_profile }}"
+    register: assumed_role
+    no_log: yes
+
+  - name: Get the list of IAM usrs in the account.
+    list_iam_users:
+      aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+      aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+      security_token: "{{ assumed_role.sts_creds.session_token }}"
+    no_log: yes
+    register: aws_users
+
+  - debug: var=aws_users

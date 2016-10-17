@@ -1,0 +1,3 @@
+accounts:
+    - { name: AWS_ACCOUNT_NAME_1, id: AWS_ACCOUNT_ID_1 }
+    - { name: AWS_ACCOUNT_NAME_2, id: AWS_ACCOUNT_ID_2 }

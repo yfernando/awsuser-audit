@@ -38,7 +38,11 @@
       aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
       aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
       security_token: "{{ assumed_role.sts_creds.session_token }}"
-    no_log: yes
-    register: aws_users
+    #no_log: yes
+    register: aws_user_list
 
-  - debug: var=aws_users
+  - debug: var=aws_user_list
+
+  # # {#11} Just to print out to the console what users exist on AWS Identity Account
+  # - name: Users Active in IAM
+  #   debug: var=existing_users

@@ -9,6 +9,7 @@
 - name: Get the user list from all our AWS accounts.
   hosts: localhost
   connection: local
+
   vars_files:
   - "./common_config/accounts.local.yml"
 
@@ -23,26 +24,47 @@
   # The temporary creds are stroed in the 'assumed_role' variable.
   # This 'assumed_role' variable will later be used for authentication.
   # Used in the custom  module: get_iam_users
-  - name: Request STS for AWS Temporarily Credentials.
+  # - name: Request STS for AWS Temporarily Credentials.
+  #   sts_assume_role:
+  #     role_arn: "arn:aws:iam::{{ accounts | selectattr('name', 'equalto', apply_on) | map(attribute='id') | list | join('') }}:role/AssumeRole-{{ apply_role }}"
+  #     # role_arn: "arn:aws:iam::543687320164:role/AssumeRole-{{ apply_role }}"
+  #     # role_arn: "arn:aws:iam::794873328112:role/AssumeRole-{{ apply_role }}"
+  #     role_session_name: "AnsibleAPICall-{{ ansible_user }}-assume-role"
+  #     region: "eu-west-1"
+  #     profile: "{{ aws_jump_profile }}"
+  #   register: assumed_role
+  #   no_log: yes
+
+
+    # GET TEMP CREDENTIALS TO ACCESS EACH AWS ACCOUNT IN ORDER TO INTERACT WITH IT.
+    # The temporary creds are stroed in the 'assumed_role' variable.
+    # This 'assumed_roles' variable will later be used for authentication.
+    # Used in the custom  module: get_iam_users
+  - name: Request STS for AWS Temporarily Credentials
     sts_assume_role:
-      # role_arn: "arn:aws:iam::{{ accounts | selectattr('name', 'equalto', apply_on) | map(attribute='id') | list | join('') }}:role/AssumeRole-{{ apply_role }}"
-      role_arn: "arn:aws:iam::543687320164:role/AssumeRole-{{ apply_role }}"
-      role_session_name: "AnsibleAPICall-{{ ansible_user }}-assume-role"
+      role_arn: "arn:aws:iam::{{ item.id }}:role/AssumeRole-{{ apply_role }}"
+      role_session_name: "AnsibleAPICall-{{ ansible_user }}-assume-role-on-{{ item.name }}"
       region: "eu-west-1"
       profile: "{{ aws_jump_profile }}"
-    register: assumed_role
+    register: assumed_roles
+    with_items:
+    - "{{ accounts }}"
     no_log: yes
 
+  # Get user list on each AWS account.
+  # Use the creds from 'assumed_roles' variable.
   - name: Get the list of IAM usrs in the account.
     list_iam_users:
-      aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
-      aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
-      security_token: "{{ assumed_role.sts_creds.session_token }}"
-    no_log: yes
+      aws_access_key: "{{ item.sts_creds.access_key }}"
+      aws_secret_key: "{{ item.sts_creds.secret_key }}"
+      security_token: "{{ item.sts_creds.session_token }}"
     register: existing_users
+    with_items:
+    - "{{ assumed_roles.results }}"
+    no_log: yes
 
-  - debug: var=existing_users
-
-  # # {#11} Just to print out to the console what users exist on AWS Identity Account
-  # - name: Users Active in IAM
-  #   debug: var=existing_users
+  # Print out to the console what users exist on AWS Account
+  - name: Users Active in IAM
+    debug: var={{item.aws_users}}
+    with_items:
+    - "{{ existing_users.results }}"
